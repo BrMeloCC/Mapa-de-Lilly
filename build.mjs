@@ -13,7 +13,7 @@ const code = modules.map((m) => strip(`./src/${m}.js`)).join('\n');
 const world = JSON.stringify(JSON.parse(read('./vendor/countries-50m.json')));
 
 // SDK oficial da Anthropic para a leitura com a chave da própria pessoa, empacotado num só script.
-const claudeKey = buildSync({ entryPoints: [fileURLToPath(new URL('./src/claude-key.js', import.meta.url))], bundle: true, minify: true, format: 'iife', platform: 'browser', target: 'es2020', write: false, legalComments: 'none' }).outputFiles[0].text;
+const claudeKey = buildSync({ entryPoints: [fileURLToPath(new URL('./src/ai-key.js', import.meta.url))], bundle: true, minify: true, format: 'iife', platform: 'browser', target: 'es2020', write: false, legalComments: 'none' }).outputFiles[0].text;
 
 const online = read('./src/page.src.html')
   .replace('/*ENGINE*/', () => code)

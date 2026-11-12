@@ -553,8 +553,9 @@ option, optgroup { background-color: var(--surface); color: var(--ink); }
 .pref { display: grid; gap: 6px; } .pref > span { font-size: 0.86rem; color: var(--muted); font-weight: 600; }
 .pref .seg-tabs { display: flex; } .pref .seg-tabs button { flex: 1; }
 .prefs-menu .linkish { justify-self: start; }
-.key-row { display: flex; gap: 8px; align-items: center; } .key-row input { flex: 1; width: 0; min-width: 0; background: var(--surface); border: 1px solid var(--line2); border-radius: var(--r); padding: 6px 10px; }
-.key-row input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.key-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.key-fields { display: grid; gap: 8px; } .key-fields input, .key-fields select { width: 100%; min-width: 0; background: var(--surface); border: 1px solid var(--line2); border-radius: var(--r); padding: 6px 10px; }
+.key-fields input:focus, .key-fields select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .key-pref p.small { margin: 0; color: var(--muted); }
 .name-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .name-row .more summary.btn { border: 0; background: none; color: var(--muted); font-size: 1.35rem; padding: 2px 10px; border-radius: 999px; }
@@ -970,7 +971,7 @@ function el(tag, attrs = {}, children = []) {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (v == null) continue;
-    if (k === 'class') n.className = v; else if (k === 'text') n.textContent = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v);
+    if (k === 'class') n.className = v; else if (k === 'text') n.textContent = aiText(v); else if (k === 'raw') n.textContent = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v);
   }
   for (const c of [].concat(children)) if (c != null && c !== false) n.append(c);
   return n;
@@ -2473,35 +2474,90 @@ function renderPrefs() {
       matchMedia('(pointer: fine)').matches ? el('button', { type: 'button', class: 'linkish', text: 'Atalhos de teclado', onclick: () => { closeMenus(); showShortcuts(); } }) : null]));
   if (keyMode()) M.insertBefore(keyPref(), M.querySelector('.pref-links'));
 }
-// Chave da API (só na versão fora do claude.ai): fica guardada apenas neste navegador.
-const keyMode = () => !window.claude && !!window.LillyClaude;
-const apiKey = () => store('lilly-api-key') || '';
-function setApiKey(k) { store('lilly-api-key', k || null); sampleState = k ? 'on' : 'key'; if (state) renderPanel(); }
+// Chave de IA (só na versão fora do claude.ai): fica guardada apenas neste navegador.
+function keyMode() { return !window.claude && !!window.LillyAI; }
+function aiCfg() {
+  const c = store('lilly-ai');
+  if (c && c.key && window.LillyAI?.PROVIDERS[c.provider]) return c;
+  const old = store('lilly-api-key'); // formato anterior: só a chave da Anthropic
+  return old ? { provider: 'anthropic', key: old, model: '' } : null;
+}
+function setAiCfg(c) { store('lilly-ai', c); if (!c) store('lilly-api-key', null); sampleState = c ? 'on' : 'key'; if (state) renderPanel(); }
+// Fora do claude.ai o texto fala da IA escolhida, não do Claude.
+const aiShort = () => { const c = keyMode() && aiCfg(); return c ? LillyAI.PROVIDERS[c.provider].short : 'IA'; };
+function aiText(t) {
+  if (!keyMode() || typeof t !== 'string' || !t.includes('Claude')) return t;
+  const n = aiShort(), art = n === 'IA';
+  return t.replace(/\b(pelo|do) Claude\b/g, (m, w) => art ? (w === 'pelo' ? 'pela IA' : 'da IA') : `${w} ${n}`)
+    .replace(/(^|[.!?] )Claude\b/g, (m, pre) => pre + (art ? 'A IA' : n)).replace(/\bClaude\b/g, n);
+}
+let keyDraft = null; // o que a pessoa está preenchendo, para não se perder quando o menu redesenha
 function keyPref() {
-  const box = el('div', { class: 'pref key-pref', onclick: (e) => e.stopPropagation() }, [el('span', { text: 'Leitura com Claude' })]);
-  const k = apiKey();
-  if (k) {
-    box.append(el('p', { class: 'small', text: `Chave da API salva (termina em ${k.slice(-4)}).` }),
-      el('div', { class: 'key-row' }, [el('button', { type: 'button', class: 'btn small', text: 'Remover chave', onclick: () => { setApiKey(''); renderPrefs(); } })]));
-  } else {
-    const inp = el('input', { type: 'password', id: 'api-key', placeholder: 'sk-ant-…', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Chave da API da Anthropic' });
-    const msg = el('span', { class: 'status' });
-    const save = () => { const v = inp.value.trim(); if (!/^sk-ant-/.test(v)) { msg.textContent = 'A chave começa com sk-ant-.'; inp.focus(); return; } setApiKey(v); renderPrefs(); };
-    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
-    box.append(el('div', { class: 'key-row' }, [inp, el('button', { type: 'button', class: 'btn small primary', text: 'Salvar', onclick: save })]), msg,
-      el('p', { class: 'small' }, ['Crie uma chave em ', el('a', { href: 'https://console.anthropic.com/settings/keys', target: '_blank', rel: 'noopener', text: 'console.anthropic.com' }), '. Ela fica só neste navegador e vai direto para a Anthropic. O uso é cobrado na sua conta.']));
+  const PV = LillyAI.PROVIDERS;
+  const box = el('div', { class: 'pref key-pref', onclick: (e) => e.stopPropagation() }, [el('span', { text: 'Leitura com IA' })]);
+  const c = aiCfg();
+  if (c && !keyDraft) {
+    box.append(el('p', { class: 'small', raw: `${PV[c.provider].name} · ${c.model || PV[c.provider].model} · chave termina em ${c.key.slice(-4)}.` }),
+      el('div', { class: 'key-row' }, [el('button', { type: 'button', class: 'btn small', text: 'Trocar', onclick: () => { keyDraft = { ...c, key: '' }; renderPrefs(); $('api-key')?.focus(); } }),
+        el('button', { type: 'button', class: 'btn small', text: 'Remover chave', onclick: () => { setAiCfg(null); renderPrefs(); } })]));
+    return box;
   }
+  const d = keyDraft || (keyDraft = { provider: 'anthropic', key: '', model: '', base: '' });
+  const sel = el('select', { id: 'ai-provider', 'aria-label': 'Provedor de IA' }, Object.entries(PV).map(([id, v]) => el('option', { value: id, raw: v.name })));
+  sel.value = d.provider;
+  const inp = el('input', { type: 'password', id: 'api-key', placeholder: 'Cole a chave da API', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Chave da API' });
+  inp.value = d.key;
+  const base = el('input', { type: 'url', id: 'ai-base', placeholder: 'https://…/v1', spellcheck: 'false', 'aria-label': 'Endereço da API' });
+  base.value = d.base || '';
+  const model = el('input', { type: 'text', id: 'ai-model', list: 'ai-models', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Modelo' });
+  model.value = d.model;
+  const list = el('datalist', { id: 'ai-models' });
+  const msg = el('span', { class: 'status' });
+  const where = el('p', { class: 'small' });
+  const sync = () => {
+    const v = PV[d.provider];
+    base.parentNode.hidden = d.provider !== 'custom';
+    model.placeholder = v.model ? `Modelo (padrão: ${v.model})` : 'Nome do modelo';
+    where.textContent = '';
+    if (v.keys) where.append('Crie uma chave em ', el('a', { href: v.keys, target: '_blank', rel: 'noopener', text: new URL(v.keys).hostname }), '. ');
+    where.append('Ela fica só neste navegador e vai direto para o provedor. O uso é cobrado na sua conta.');
+  };
+  let seen = '';
+  const suggest = async () => {
+    const k = `${d.provider}|${d.key}|${d.base}`; if (!d.key || k === seen || (d.provider === 'custom' && !d.base)) return; seen = k;
+    const ids = await LillyAI.models(d); if (k !== seen) return;
+    list.replaceChildren(...ids.map((id) => el('option', { value: id })));
+  };
+  sel.addEventListener('change', () => { d.provider = sel.value; d.model = model.value = ''; list.replaceChildren(); msg.textContent = ''; sync(); suggest(); });
+  inp.addEventListener('input', () => { d.key = inp.value.trim(); const g = LillyAI.detect(d.key); if (g && g !== d.provider && d.provider !== 'custom') { d.provider = sel.value = g; d.model = model.value = ''; sync(); } msg.textContent = ''; });
+  inp.addEventListener('change', suggest);
+  base.addEventListener('input', () => { d.base = base.value.trim(); });
+  base.addEventListener('change', suggest);
+  model.addEventListener('input', () => { d.model = model.value.trim(); });
+  model.addEventListener('focus', suggest);
+  const save = () => {
+    if (!d.key) { msg.textContent = 'Cole a chave da API.'; inp.focus(); return; }
+    if (d.provider === 'custom' && !/^https?:\/\/\S+$/.test(d.base)) { msg.textContent = 'Informe o endereço da API, como https://…/v1.'; base.focus(); return; }
+    if (d.provider === 'custom' && !d.model) { msg.textContent = 'Informe o nome do modelo.'; model.focus(); return; }
+    const c2 = { provider: d.provider, key: d.key, model: d.model, ...(d.provider === 'custom' ? { base: d.base } : {}) };
+    keyDraft = null; setAiCfg(c2); renderPrefs();
+  };
+  for (const f of [inp, base, model]) f.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+  box.append(el('div', { class: 'key-fields' }, [sel, inp, el('div', { hidden: d.provider !== 'custom' ? '' : null }, [base]), model, list]),
+    el('div', { class: 'key-row' }, [el('button', { type: 'button', class: 'btn small primary', text: 'Salvar', onclick: save }),
+      aiCfg() ? el('button', { type: 'button', class: 'btn small', text: 'Cancelar', onclick: () => { keyDraft = null; renderPrefs(); } }) : null, msg]), where);
+  sync();
   return box;
 }
 function openKeyPrefs() {
   const d = document.querySelector('details.prefs'); d.open = true; renderPrefs();
   d.scrollIntoView({ block: 'nearest' }); setTimeout(() => $('api-key')?.focus(), 0);
 }
-const keyPrompt = (text) => el('div', { class: 'ai-row' }, [el('button', { class: 'btn small', text: 'Adicionar chave da API', onclick: (e) => { e.stopPropagation(); openKeyPrefs(); } }),
-  el('span', { class: 'status', text: text || 'Para ler com Claude fora do claude.ai, use sua própria chave da API da Anthropic.' })]);
+const keyPrompt = (text) => el('div', { class: 'ai-row' }, [el('button', { class: 'btn small', text: 'Adicionar chave de IA', onclick: (e) => { e.stopPropagation(); openKeyPrefs(); } }),
+  el('span', { class: 'status', raw: text || 'Use sua própria chave de IA: Claude, ChatGPT, Gemini, OpenRouter ou outra compatível.' })]);
 renderPrefs();
-// Não redesenha por cima de uma chave que a pessoa já começou a digitar.
-document.querySelector('details.prefs').addEventListener('toggle', (e) => { if (e.target.open && !$('api-key')?.value) { const had = document.activeElement?.id === 'api-key'; renderPrefs(); if (had) $('api-key')?.focus(); } });
+document.querySelector('details.prefs').addEventListener('toggle', (e) => { if (e.target.open) { const had = document.activeElement?.id; renderPrefs(); if (had && M_HAS(had)) $(had).focus(); } else keyDraft = keyDraft && keyDraft.key ? keyDraft : null; });
+function M_HAS(id) { return !!$('prefs-menu').querySelector('#' + CSS.escape(id)); }
 
 // ---------- Tour da primeira visita (3 passos) ----------
 const TOUR = [
@@ -2663,7 +2719,7 @@ async function runSample(key, prompt, ui) {
   if (!sampleFn) { ui.status.textContent = 'A leitura com Claude não está disponível nesta visualização.'; return; }
   if (aiBusy) aiBusy.abort();
   const ctl = new AbortController(); aiBusy = ctl;
-  ui.btn.disabled = true; ui.status.textContent = 'Claude está lendo o mapa. Isso leva cerca de um minuto.';
+  ui.btn.disabled = true; ui.status.textContent = aiText('Claude está lendo o mapa. Isso leva cerca de um minuto.');
   try {
     const { text, truncated } = await sampleFn(prompt, { signal: ctl.signal, onText: ({ text }) => { ui.status.textContent = 'Escrevendo…'; ui.show(text, true); } });
     ui.show(text, false);
@@ -2676,9 +2732,10 @@ async function runSample(key, prompt, ui) {
     else if (['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed'].includes(e.code)) { ui.status.textContent = 'A leitura com Claude não foi permitida nesta página.'; ui.btn.hidden = true; }
     else if (e.code === 'rate_limited') ui.status.textContent = 'Muitos pedidos agora. Tente de novo daqui a pouco.';
     else if (e.code === 'bad_key') { ui.status.textContent = 'A chave da API não foi aceita. Confira ou troque nas preferências.'; }
-    else if (e.code === 'no_credit') ui.status.textContent = 'Sua conta da Anthropic está sem créditos para a API.';
-    else if (e.code === 'offline') ui.status.textContent = 'Sem conexão com a Anthropic. Confira a internet e tente de novo.';
-    else if (e.code === 'refused') { if (e.text) ui.show(e.text, false); ui.status.textContent = 'Claude não quis continuar esta leitura.'; }
+    else if (e.code === 'no_credit') ui.status.textContent = 'Sua conta no provedor de IA está sem créditos para a API.';
+    else if (e.code === 'offline') ui.status.textContent = 'Sem conexão com o provedor de IA. Confira a internet e tente de novo.';
+    else if (e.code === 'bad_model') ui.status.textContent = 'Esse modelo não foi encontrado na sua conta. Troque o modelo nas preferências.';
+    else if (e.code === 'refused') { if (e.text) ui.show(e.text, false); ui.status.textContent = aiText('Claude não quis continuar esta leitura.'); }
     else if (e.code === 'session_expired') ui.status.textContent = 'Sua sessão expirou. Entre de novo no claude.ai e tente outra vez.';
     else { if (e.text) ui.show(e.text, false); ui.status.textContent = 'A leitura foi interrompida. Tente de novo.'; }
   } finally { ui.btn.disabled = false; if (aiBusy === ctl) aiBusy = null; }
@@ -3729,7 +3786,7 @@ $('form').addEventListener('submit', async (e) => {
 async function initCapabilities() {
   const cl = window.claude;
   if (!cl || !cl.use) {
-    if (window.LillyClaude) { sampleFn = (prompt, opts) => window.LillyClaude.read(apiKey(), prompt, opts); sampleState = apiKey() ? 'on' : 'key'; }
+    if (window.LillyAI) { sampleFn = (prompt, opts) => window.LillyAI.read(aiCfg(), prompt, opts); sampleState = aiCfg() ? 'on' : 'key'; }
     else sampleState = 'off';
     if (state) renderPanel(); return;
   }

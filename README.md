@@ -17,7 +17,7 @@ O que tem no app:
 
 **Sem instalar nada:** baixe `mapa-lilly-offline.html` na aba *Actions* do GitHub (última execução de *Testes*, item *mapa-de-lilly*) e abra com dois cliques. Os cálculos funcionam sem internet; só as fontes tipográficas caem para as do sistema quando não há conexão.
 
-**Leitura com Claude fora do claude.ai:** cada pessoa usa a própria chave da API da Anthropic. Crie uma em [console.anthropic.com](https://console.anthropic.com/settings/keys) e cole em *Preferências → Leitura com Claude*. A chave fica guardada só naquele navegador e vai direto para a Anthropic; o uso é cobrado na conta de quem colou. Sem chave, todo o resto do app funciona normalmente.
+**Leitura com IA fora do claude.ai:** cada pessoa usa a própria chave, de qualquer provedor: Anthropic (Claude), OpenAI (ChatGPT), Google (Gemini), OpenRouter ou qualquer serviço compatível com a API da OpenAI (Groq, Mistral, Ollama local e outros). Cole a chave em *Preferências → Leitura com IA*; o provedor é reconhecido pelo começo da chave e o modelo pode ser trocado. A chave fica guardada só naquele navegador e vai direto para o provedor; o uso é cobrado na conta de quem colou. Sem chave, todo o resto do app funciona normalmente.
 
 **No claude.ai:** a versão `dist/mapa-lilly.html` é a publicada como Artifact. Lá ela guarda as pessoas na sua conta e a leitura com Claude usa a própria conta do claude.ai, sem chave. Fora do claude.ai, as pessoas ficam guardadas só no navegador em que você abriu.
 
@@ -38,7 +38,7 @@ npm run build && npm run test:browsers  # abre o app de verdade nos três navega
 
 - `tests/accuracy.mjs` compara Sol, Lua, planetas, Ascendente, Meio do Céu e cúspides com uma referência independente (VSOP87 e ELP, Meeus). Falha se algo passar de 1 minuto de arco; hoje o maior desvio é 0,4'.
 - `tests/timezones.mjs` confere o horário de verão histórico do Brasil (1950, 1985, 1989-90, 2018, o fim em 2019) e a hora média local de antes de 1914.
-- `tests/browsers.spec.js` abre as duas versões em cada navegador, confere que o mapa calculado na página bate com o do Node, repete os fusos dentro do navegador, passa por todas as abas e mede se a tela de celular rola para o lado. A versão offline roda com a internet bloqueada, e a leitura com chave é testada contra uma resposta simulada da API.
+- `tests/browsers.spec.js` abre as duas versões em cada navegador, confere que o mapa calculado na página bate com o do Node, repete os fusos dentro do navegador, passa por todas as abas e mede se a tela de celular rola para o lado. A versão offline roda com a internet bloqueada, e a leitura com chave é testada contra respostas simuladas de cada provedor.
 
 O GitHub Actions roda tudo isso em Linux, Windows e macOS a cada envio.
 

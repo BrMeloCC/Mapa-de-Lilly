@@ -36,6 +36,10 @@ function sse(...parts) {
     + ev('message_stop', {});
 }
 
+const openaiSse = (...parts) => parts.map((t) => `data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: t }, finish_reason: null }] })}\n\n`).join('')
+  + `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`;
+const geminiSse = (...parts) => parts.map((t, i) => `data: ${JSON.stringify({ candidates: [{ content: { role: 'model', parts: [{ text: t }] }, ...(i === parts.length - 1 ? { finishReason: 'STOP' } : {}) }] })}\r\n\r\n`).join('');
+
 async function open(page, url, { offline = false } = {}) {
   const errors = [];
   const blocked = [];
@@ -122,30 +126,42 @@ for (const [build, url] of Object.entries(BUILDS)) {
     });
 
     if (offline) {
-      test('leitura com Claude usa a chave da própria pessoa', async ({ page }) => {
-        const { errors } = await open(page, url, { offline });
-        let sent = null;
-        // Resposta falsa da API, no formato de streaming; nada sai para a internet.
-        await page.route('https://api.anthropic.com/**', async (route) => {
-          const req = route.request();
-          if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
-          const h = await req.allHeaders(); sent = { key: h['x-api-key'] || (h.authorization || '').replace(/^Bearer /, ''), browser: h['anthropic-dangerous-direct-browser-access'], body: JSON.parse(req.postData()) };
-          await route.fulfill({ status: 200, headers: { ...CORS, 'content-type': 'text/event-stream' }, body: sse('Saturno pede paciência. ', 'Marte pede coragem.') });
+      // Cada provedor recebe uma resposta falsa no formato de streaming dele; nada sai para a internet.
+      const AI = [
+        { nome: 'Anthropic', key: 'sk-ant-teste-0000-abcd', host: 'https://api.anthropic.com/**', provider: 'anthropic', modelo: 'claude-opus-5-5',
+          body: () => sse('Saturno pede paciência. ', 'Marte pede coragem.'), auth: (h) => h['x-api-key'] || (h.authorization || '').replace(/^Bearer /, ''), model: (b) => b.model },
+        { nome: 'OpenAI', key: 'sk-proj-teste-0000-abcd', host: 'https://api.openai.com/**', provider: 'openai', modelo: 'gpt-5',
+          body: () => openaiSse('Saturno pede paciência. ', 'Marte pede coragem.'), auth: (h) => (h.authorization || '').replace(/^Bearer /, ''), model: (b) => b.model },
+        { nome: 'Gemini', key: 'AIzaTeste0000abcd', host: 'https://generativelanguage.googleapis.com/**', provider: 'gemini', modelo: 'gemini-pro-latest',
+          body: () => geminiSse('Saturno pede paciência. ', 'Marte pede coragem.'), auth: (h) => h['x-goog-api-key'], model: (b, u) => decodeURIComponent(u.match(/models\/([^:]+):/)[1]) },
+        { nome: 'OpenRouter', key: 'sk-or-teste-0000-abcd', host: 'https://openrouter.ai/**', provider: 'openrouter', modelo: 'openrouter/auto',
+          body: () => openaiSse('Saturno pede paciência. ', 'Marte pede coragem.'), auth: (h) => (h.authorization || '').replace(/^Bearer /, ''), model: (b) => b.model },
+      ];
+      for (const ai of AI) {
+        test(`leitura com IA usa a chave da própria pessoa: ${ai.nome}`, async ({ page }) => {
+          const { errors } = await open(page, url, { offline });
+          let sent = null;
+          await page.route(ai.host, async (route) => {
+            const req = route.request();
+            if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+            if (req.method() === 'GET') return route.fulfill({ status: 200, headers: { ...CORS, 'content-type': 'application/json' }, body: '{"data":[],"models":[]}' });
+            sent = { key: ai.auth(await req.allHeaders()), model: ai.model(JSON.parse(req.postData()), req.url()) };
+            await route.fulfill({ status: 200, headers: { ...CORS, 'content-type': 'text/event-stream' }, body: ai.body() });
+          });
+          await page.click('.subtab[data-p="leitura"]');
+          await page.click('#panel-leitura button:has-text("Adicionar chave de IA")');
+          await page.fill('#api-key', ai.key);
+          await expect(page.locator('#ai-provider')).toHaveValue(ai.provider); // reconhecido pelo começo da chave
+          await page.click('.key-pref button:has-text("Salvar")');
+          await expect(page.locator('.key-pref')).toContainText('abcd');
+          await page.keyboard.press('Escape');
+          await page.click('#panel-leitura button:has-text("Gerar leitura completa")');
+          await expect(page.locator('#panel-leitura')).toContainText('Marte pede coragem.');
+          expect(sent.key).toBe(ai.key);
+          expect(sent.model).toBe(ai.modelo);
+          expect(errors).toEqual([]);
         });
-        await page.click('.subtab[data-p="leitura"]');
-        await page.click('#panel-leitura button:has-text("Adicionar chave da API")');
-        await page.fill('#api-key', 'sk-ant-teste-0000-abcd');
-        await page.click('.key-pref button:has-text("Salvar")');
-        await expect(page.locator('.key-pref')).toContainText('abcd');
-        await page.keyboard.press('Escape');
-        await page.click('#panel-leitura button:has-text("Gerar leitura completa")');
-        await expect(page.locator('#panel-leitura')).toContainText('Marte pede coragem.');
-        expect(sent.key).toBe('sk-ant-teste-0000-abcd');
-        expect(sent.browser).toBe('true');
-        expect(sent.body.model).toBe('claude-opus-5-5');
-        expect(sent.body.stream).toBe(true);
-        expect(errors).toEqual([]);
-      });
+      }
 
       test('gerador de PDF embutido carrega sem internet', async ({ page }) => {
         await open(page, url, { offline });
