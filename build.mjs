@@ -1,13 +1,18 @@
 // Gera duas versões da página em dist/:
 //  - mapa-lilly.html          bibliotecas pelo CDN; é o arquivo publicado como Artifact no claude.ai
-//  - mapa-lilly-offline.html  tudo embutido; abre com dois cliques, sem internet, em qualquer navegador
+//  - mapa-lilly-offline.html  tudo embutido; abre com dois cliques em qualquer navegador. A leitura com Claude
+//                             usa a chave da API da própria pessoa (o Artifact usa a conta do claude.ai).
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { buildSync } from 'esbuild';
 const read = (f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 const strip = (f) => read(f).replace(/^import .*$/gm, '').replace(/^export /gm, '');
 
 const modules = ['engine', 'scoring', 'interp', 'extras', 'glyphs', 'features', 'sky'];
 const code = modules.map((m) => strip(`./src/${m}.js`)).join('\n');
 const world = JSON.stringify(JSON.parse(read('./vendor/countries-50m.json')));
+
+// SDK oficial da Anthropic para a leitura com a chave da própria pessoa, empacotado num só script.
+const claudeKey = buildSync({ entryPoints: [new URL('./src/claude-key.js', import.meta.url).pathname], bundle: true, minify: true, format: 'iife', platform: 'browser', target: 'es2020', write: false, legalComments: 'none' }).outputFiles[0].text;
 
 const online = read('./src/page.src.html')
   .replace('/*ENGINE*/', () => code)
@@ -24,7 +29,8 @@ const LIBS = [
 const safe = (js) => js.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--');
 const lib = (p) => readFileSync(new URL(`./node_modules/${p}`, import.meta.url), 'utf8');
 
-let offline = online;
+let offline = online.replace('/*CLAUDEKEY*/', () => safe(claudeKey));
+const artifact = online.replace('/*CLAUDEKEY*/', '');
 for (const [url, path] of LIBS) {
   const tag = `<script src="${url}"></script>`;
   if (!offline.includes(tag)) throw new Error(`não achei ${tag}`);
@@ -50,7 +56,7 @@ const head = `<!doctype html>
 offline = head + offline + '\n</body>\n</html>\n';
 
 mkdirSync(new URL('./dist/', import.meta.url), { recursive: true });
-writeFileSync(new URL('./dist/mapa-lilly.html', import.meta.url), online);
+writeFileSync(new URL('./dist/mapa-lilly.html', import.meta.url), artifact);
 writeFileSync(new URL('./dist/mapa-lilly-offline.html', import.meta.url), offline);
-console.log(`dist/mapa-lilly.html ${(online.length / 1024).toFixed(0)} KB`);
+console.log(`dist/mapa-lilly.html ${(artifact.length / 1024).toFixed(0)} KB`);
 console.log(`dist/mapa-lilly-offline.html ${(offline.length / 1024).toFixed(0)} KB`);

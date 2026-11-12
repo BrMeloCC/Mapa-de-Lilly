@@ -549,10 +549,13 @@ option, optgroup { background-color: var(--surface); color: var(--ink); }
 .hbtn::-webkit-details-marker { display: none; }
 .hbtn:hover, details[open] > .hbtn { color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, transparent); }
 .hbtn .sym { display: inline-grid; } .hbtn .lbl { display: none; }
-.prefs { position: relative; } .prefs .dl-menu { left: auto; right: 0; min-width: 280px; padding: 14px; gap: 14px; }
+.prefs { position: relative; } .prefs .dl-menu { left: auto; right: 0; min-width: 0; width: min(320px, calc(100vw - 32px)); padding: 14px; gap: 14px; }
 .pref { display: grid; gap: 6px; } .pref > span { font-size: 0.86rem; color: var(--muted); font-weight: 600; }
 .pref .seg-tabs { display: flex; } .pref .seg-tabs button { flex: 1; }
 .prefs-menu .linkish { justify-self: start; }
+.key-row { display: flex; gap: 8px; align-items: center; } .key-row input { flex: 1; width: 0; min-width: 0; background: var(--surface); border: 1px solid var(--line2); border-radius: var(--r); padding: 6px 10px; }
+.key-row input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.key-pref p.small { margin: 0; color: var(--muted); }
 .name-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .name-row .more summary.btn { border: 0; background: none; color: var(--muted); font-size: 1.35rem; padding: 2px 10px; border-radius: 999px; }
 .name-row .more summary.btn:hover, .name-row .more[open] summary.btn { color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, transparent); }
@@ -885,6 +888,9 @@ kbd { font: 600 0.78rem/1 var(--body); padding: 3px 6px; border-radius: 4px; bor
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
 <!-- jsPDF é carregado só quando a pessoa pede o PDF: https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js -->
+<script>
+/*CLAUDEKEY*/
+</script>
 <script>
 /*TZ*/
 </script>
@@ -2463,7 +2469,34 @@ function renderPrefs() {
     seg('Tamanho do texto', [[1, 'Normal'], [1.12, 'Maior'], [1.25, 'Grande']], prefs.text, (v) => { prefs.text = v; store('lilly-text', v); document.documentElement.style.setProperty('--fs', v); }),
     el('div', { class: 'pref-links' }, [el('button', { type: 'button', class: 'linkish', text: 'Ver o tour de novo', onclick: () => { closeMenus(); showView('map'); startTour(true); } }),
       matchMedia('(pointer: fine)').matches ? el('button', { type: 'button', class: 'linkish', text: 'Atalhos de teclado', onclick: () => { closeMenus(); showShortcuts(); } }) : null]));
+  if (keyMode()) M.insertBefore(keyPref(), M.querySelector('.pref-links'));
 }
+// Chave da API (só na versão fora do claude.ai): fica guardada apenas neste navegador.
+const keyMode = () => !window.claude && !!window.LillyClaude;
+const apiKey = () => store('lilly-api-key') || '';
+function setApiKey(k) { store('lilly-api-key', k || null); sampleState = k ? 'on' : 'key'; if (state) renderPanel(); }
+function keyPref() {
+  const box = el('div', { class: 'pref key-pref', onclick: (e) => e.stopPropagation() }, [el('span', { text: 'Leitura com Claude' })]);
+  const k = apiKey();
+  if (k) {
+    box.append(el('p', { class: 'small', text: `Chave da API salva (termina em ${k.slice(-4)}).` }),
+      el('div', { class: 'key-row' }, [el('button', { type: 'button', class: 'btn small', text: 'Remover chave', onclick: () => { setApiKey(''); renderPrefs(); } })]));
+  } else {
+    const inp = el('input', { type: 'password', id: 'api-key', placeholder: 'sk-ant-…', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Chave da API da Anthropic' });
+    const msg = el('span', { class: 'status' });
+    const save = () => { const v = inp.value.trim(); if (!/^sk-ant-/.test(v)) { msg.textContent = 'A chave começa com sk-ant-.'; inp.focus(); return; } setApiKey(v); renderPrefs(); };
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+    box.append(el('div', { class: 'key-row' }, [inp, el('button', { type: 'button', class: 'btn small primary', text: 'Salvar', onclick: save })]), msg,
+      el('p', { class: 'small' }, ['Crie uma chave em ', el('a', { href: 'https://console.anthropic.com/settings/keys', target: '_blank', rel: 'noopener', text: 'console.anthropic.com' }), '. Ela fica só neste navegador e vai direto para a Anthropic. O uso é cobrado na sua conta.']));
+  }
+  return box;
+}
+function openKeyPrefs() {
+  const d = document.querySelector('details.prefs'); d.open = true; renderPrefs();
+  d.scrollIntoView({ block: 'nearest' }); setTimeout(() => $('api-key')?.focus(), 0);
+}
+const keyPrompt = (text) => el('div', { class: 'ai-row' }, [el('button', { class: 'btn small', text: 'Adicionar chave da API', onclick: (e) => { e.stopPropagation(); openKeyPrefs(); } }),
+  el('span', { class: 'status', text: text || 'Para ler com Claude fora do claude.ai, use sua própria chave da API da Anthropic.' })]);
 renderPrefs();
 document.querySelector('details.prefs').addEventListener('toggle', (e) => { if (e.target.open) renderPrefs(); });
 
@@ -2603,6 +2636,7 @@ async function loadReading(key) {
 }
 function aiTeaser() {
   if (sampleState === 'off') return null;
+  if (sampleState === 'key') return keyPrompt();
   return el('div', { class: 'ai-row' }, [el('button', { class: 'btn primary small', text: 'Ler a análise personalizada', onclick: () => showPanel('leitura') }),
     el('span', { class: 'status', text: 'Claude escreve uma leitura completa e específica deste mapa.' })]);
 }
@@ -2610,6 +2644,7 @@ function aiTeaser() {
 function aiBlock(kind, label, promptFn, fixedKey) {
   const box = el('div', { class: 'ai-box' });
   if (sampleState === 'off') return null;
+  if (sampleState === 'key') { box.append(keyPrompt()); return box; }
   const key = fixedKey || cacheKey(kind);
   const out = el('div');
   const status = el('span', { class: 'status' });
@@ -2637,6 +2672,10 @@ async function runSample(key, prompt, ui) {
     if (e.code === 'cancelled') { ui.status.textContent = ''; }
     else if (['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed'].includes(e.code)) { ui.status.textContent = 'A leitura com Claude não foi permitida nesta página.'; ui.btn.hidden = true; }
     else if (e.code === 'rate_limited') ui.status.textContent = 'Muitos pedidos agora. Tente de novo daqui a pouco.';
+    else if (e.code === 'bad_key') { ui.status.textContent = 'A chave da API não foi aceita. Confira ou troque nas preferências.'; }
+    else if (e.code === 'no_credit') ui.status.textContent = 'Sua conta da Anthropic está sem créditos para a API.';
+    else if (e.code === 'offline') ui.status.textContent = 'Sem conexão com a Anthropic. Confira a internet e tente de novo.';
+    else if (e.code === 'refused') { if (e.text) ui.show(e.text, false); ui.status.textContent = 'Claude não quis continuar esta leitura.'; }
     else if (e.code === 'session_expired') ui.status.textContent = 'Sua sessão expirou. Entre de novo no claude.ai e tente outra vez.';
     else { if (e.text) ui.show(e.text, false); ui.status.textContent = 'A leitura foi interrompida. Tente de novo.'; }
   } finally { ui.btn.disabled = false; if (aiBusy === ctl) aiBusy = null; }
@@ -2647,6 +2686,7 @@ function renderReading() {
     el('p', { class: 'small', text: 'Claude recebe todos os cálculos deste mapa (posições, pontos de Lilly, regentes, aspectos) e escreve uma interpretação específica, explicando o porquê de cada conclusão.' })]);
   if (sampleState === 'off') { card.append(el('p', { class: 'status', text: 'A leitura com Claude não está disponível nesta visualização. As outras abas continuam funcionando.' })); P.append(card); return; }
   if (sampleState === 'loading') { card.append(el('p', { class: 'status', text: 'Conectando…' })); P.append(card); return; }
+  if (sampleState === 'key') { card.append(keyPrompt()); P.append(card); return; }
   const key = cacheKey('full');
   const out = el('div');
   const status = el('span', { class: 'status' });
@@ -3685,7 +3725,11 @@ $('form').addEventListener('submit', async (e) => {
 // ---------- Início ----------
 async function initCapabilities() {
   const cl = window.claude;
-  if (!cl || !cl.use) { sampleState = 'off'; if (state && panel === 'leitura') renderPanel(); return; }
+  if (!cl || !cl.use) {
+    if (window.LillyClaude) { sampleFn = (prompt, opts) => window.LillyClaude.read(apiKey(), prompt, opts); sampleState = apiKey() ? 'on' : 'key'; }
+    else sampleState = 'off';
+    if (state) renderPanel(); return;
+  }
   cl.use('sample').then((s) => { sampleFn = s; sampleState = s ? 'on' : 'off'; if (state) renderPanel(); });
   const [db, user] = await Promise.all([cl.use('db'), cl.use('user')]);
   const uid = user ? await user.id().catch(() => null) : null;

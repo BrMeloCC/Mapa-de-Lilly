@@ -25,6 +25,17 @@ const LOCAL_LIBS = [
   ['https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js', 'topojson-client/dist/topojson-client.min.js'],
 ];
 
+const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
+function sse(...parts) {
+  const ev = (type, data) => `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
+  return ev('message_start', { message: { id: 'msg_teste', type: 'message', role: 'assistant', model: 'claude-opus-5-5', content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 10, output_tokens: 0 } } })
+    + ev('content_block_start', { index: 0, content_block: { type: 'text', text: '' } })
+    + parts.map((t) => ev('content_block_delta', { index: 0, delta: { type: 'text_delta', text: t } })).join('')
+    + ev('content_block_stop', { index: 0 })
+    + ev('message_delta', { delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 12 } })
+    + ev('message_stop', {});
+}
+
 async function open(page, url, { offline = false } = {}) {
   const errors = [];
   const blocked = [];
@@ -111,6 +122,31 @@ for (const [build, url] of Object.entries(BUILDS)) {
     });
 
     if (offline) {
+      test('leitura com Claude usa a chave da própria pessoa', async ({ page }) => {
+        const { errors } = await open(page, url, { offline });
+        let sent = null;
+        // Resposta falsa da API, no formato de streaming; nada sai para a internet.
+        await page.route('https://api.anthropic.com/**', async (route) => {
+          const req = route.request();
+          if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+          const h = await req.allHeaders(); sent = { key: h['x-api-key'] || (h.authorization || '').replace(/^Bearer /, ''), browser: h['anthropic-dangerous-direct-browser-access'], body: JSON.parse(req.postData()) };
+          await route.fulfill({ status: 200, headers: { ...CORS, 'content-type': 'text/event-stream' }, body: sse('Saturno pede paciência. ', 'Marte pede coragem.') });
+        });
+        await page.click('.subtab[data-p="leitura"]');
+        await page.click('#panel-leitura button:has-text("Adicionar chave da API")');
+        await page.fill('#api-key', 'sk-ant-teste-0000-abcd');
+        await page.click('.key-pref button:has-text("Salvar")');
+        await expect(page.locator('.key-pref')).toContainText('abcd');
+        await page.keyboard.press('Escape');
+        await page.click('#panel-leitura button:has-text("Gerar leitura completa")');
+        await expect(page.locator('#panel-leitura')).toContainText('Marte pede coragem.');
+        expect(sent.key).toBe('sk-ant-teste-0000-abcd');
+        expect(sent.browser).toBe('true');
+        expect(sent.body.model).toBe('claude-opus-5-5');
+        expect(sent.body.stream).toBe(true);
+        expect(errors).toEqual([]);
+      });
+
       test('gerador de PDF embutido carrega sem internet', async ({ page }) => {
         await open(page, url, { offline });
         const ok = await page.evaluate(() => new Promise((res) => {
