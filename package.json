@@ -1,0 +1,23 @@
+{
+  "name": "mapa-de-lilly",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mapa astral pelo método de William Lilly: cálculo, pontuação de dignidades e leitura em português.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test:calc": "node tests/accuracy.mjs && node tests/timezones.mjs",
+    "test:browsers": "playwright test",
+    "test": "npm run build && npm run test:calc && npm run test:browsers"
+  },
+  "dependencies": {
+    "astronomy-engine": "2.1.19",
+    "d3": "7.9.0",
+    "jspdf": "2.5.1",
+    "topojson-client": "3.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "astronomia": "4.1.1"
+  }
+}
