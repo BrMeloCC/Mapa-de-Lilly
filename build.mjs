@@ -3,6 +3,7 @@
 //  - mapa-lilly-offline.html  tudo embutido; abre com dois cliques em qualquer navegador. A leitura com Claude
 //                             usa a chave da API da própria pessoa (o Artifact usa a conta do claude.ai).
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { buildSync } from 'esbuild';
 const read = (f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 const strip = (f) => read(f).replace(/^import .*$/gm, '').replace(/^export /gm, '');
@@ -12,7 +13,7 @@ const code = modules.map((m) => strip(`./src/${m}.js`)).join('\n');
 const world = JSON.stringify(JSON.parse(read('./vendor/countries-50m.json')));
 
 // SDK oficial da Anthropic para a leitura com a chave da própria pessoa, empacotado num só script.
-const claudeKey = buildSync({ entryPoints: [new URL('./src/claude-key.js', import.meta.url).pathname], bundle: true, minify: true, format: 'iife', platform: 'browser', target: 'es2020', write: false, legalComments: 'none' }).outputFiles[0].text;
+const claudeKey = buildSync({ entryPoints: [fileURLToPath(new URL('./src/claude-key.js', import.meta.url))], bundle: true, minify: true, format: 'iife', platform: 'browser', target: 'es2020', write: false, legalComments: 'none' }).outputFiles[0].text;
 
 const online = read('./src/page.src.html')
   .replace('/*ENGINE*/', () => code)

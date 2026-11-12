@@ -2498,7 +2498,8 @@ function openKeyPrefs() {
 const keyPrompt = (text) => el('div', { class: 'ai-row' }, [el('button', { class: 'btn small', text: 'Adicionar chave da API', onclick: (e) => { e.stopPropagation(); openKeyPrefs(); } }),
   el('span', { class: 'status', text: text || 'Para ler com Claude fora do claude.ai, use sua própria chave da API da Anthropic.' })]);
 renderPrefs();
-document.querySelector('details.prefs').addEventListener('toggle', (e) => { if (e.target.open) renderPrefs(); });
+// Não redesenha por cima de uma chave que a pessoa já começou a digitar.
+document.querySelector('details.prefs').addEventListener('toggle', (e) => { if (e.target.open && !$('api-key')?.value) { const had = document.activeElement?.id === 'api-key'; renderPrefs(); if (had) $('api-key')?.focus(); } });
 
 // ---------- Tour da primeira visita (3 passos) ----------
 const TOUR = [
