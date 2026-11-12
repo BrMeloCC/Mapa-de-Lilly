@@ -554,7 +554,7 @@ option, optgroup { background-color: var(--surface); color: var(--ink); }
 .pref .seg-tabs { display: flex; } .pref .seg-tabs button { flex: 1; }
 .prefs-menu .linkish { justify-self: start; }
 .key-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.key-fields { display: grid; gap: 8px; } .key-fields input, .key-fields select { width: 100%; min-width: 0; background: var(--surface); border: 1px solid var(--line2); border-radius: var(--r); padding: 6px 10px; }
+.key-fields { display: grid; gap: 8px; } .key-fields .key-check { display: flex; align-items: center; gap: 8px; font-size: 0.92rem; cursor: pointer; } .key-fields .key-check input { width: auto; padding: 0; accent-color: var(--accent); } .key-fields input, .key-fields select { width: 100%; min-width: 0; background: var(--surface); border: 1px solid var(--line2); border-radius: var(--r); padding: 6px 10px; }
 .key-fields input:focus, .key-fields select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .key-pref p.small { margin: 0; color: var(--muted); }
 .name-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
@@ -2476,13 +2476,17 @@ function renderPrefs() {
 }
 // Chave de IA (só na versão fora do claude.ai): fica guardada apenas neste navegador.
 function keyMode() { return !window.claude && !!window.LillyAI; }
+// Sem "lembrar", a chave vive só nesta aba (sessionStorage) e some quando ela fecha.
+const tabStore = (v) => { try { if (v === undefined) return JSON.parse(sessionStorage.getItem('lilly-ai') || 'null'); if (v) sessionStorage.setItem('lilly-ai', JSON.stringify(v)); else sessionStorage.removeItem('lilly-ai'); } catch (e) {} return null; };
+let tabCfg = tabStore(); // também guarda em memória, caso o navegador bloqueie o sessionStorage
 function aiCfg() {
+  if (tabCfg && tabCfg.key && window.LillyAI?.PROVIDERS[tabCfg.provider]) return tabCfg;
   const c = store('lilly-ai');
   if (c && c.key && window.LillyAI?.PROVIDERS[c.provider]) return c;
   const old = store('lilly-api-key'); // formato anterior: só a chave da Anthropic
   return old ? { provider: 'anthropic', key: old, model: '' } : null;
 }
-function setAiCfg(c) { store('lilly-ai', c); if (!c) store('lilly-api-key', null); sampleState = c ? 'on' : 'key'; if (state) renderPanel(); }
+function setAiCfg(c, remember = true) { tabCfg = c && !remember ? c : null; tabStore(tabCfg); store('lilly-ai', c && remember ? c : null); store('lilly-api-key', null); sampleState = c ? 'on' : 'key'; if (state) renderPanel(); }
 // Fora do claude.ai o texto fala da IA escolhida, não do Claude.
 const aiShort = () => { const c = keyMode() && aiCfg(); return c ? LillyAI.PROVIDERS[c.provider].short : 'IA'; };
 function aiText(t) {
@@ -2497,12 +2501,14 @@ function keyPref() {
   const box = el('div', { class: 'pref key-pref', onclick: (e) => e.stopPropagation() }, [el('span', { text: 'Leitura com IA' })]);
   const c = aiCfg();
   if (c && !keyDraft) {
-    box.append(el('p', { class: 'small', raw: `${PV[c.provider].name} · ${c.model || PV[c.provider].model} · chave termina em ${c.key.slice(-4)}.` }),
-      el('div', { class: 'key-row' }, [el('button', { type: 'button', class: 'btn small', text: 'Trocar', onclick: () => { keyDraft = { ...c, key: '' }; renderPrefs(); $('api-key')?.focus(); } }),
+    box.append(el('p', { class: 'small', raw: `${PV[c.provider].name} · ${c.model || PV[c.provider].model} · chave termina em ${c.key.slice(-4)}${tabCfg ? ' · só até fechar esta aba' : ''}.` }),
+      el('div', { class: 'key-row' }, [el('button', { type: 'button', class: 'btn small', text: 'Trocar', onclick: () => { keyDraft = { ...c, key: '', remember: !tabCfg }; renderPrefs(); $('api-key')?.focus(); } }),
         el('button', { type: 'button', class: 'btn small', text: 'Remover chave', onclick: () => { setAiCfg(null); renderPrefs(); } })]));
     return box;
   }
-  const d = keyDraft || (keyDraft = { provider: 'anthropic', key: '', model: '', base: '' });
+  const d = keyDraft || (keyDraft = { provider: 'anthropic', key: '', model: '', base: '', remember: true });
+  const rem = el('input', { type: 'checkbox', id: 'ai-remember' }); rem.checked = d.remember !== false;
+  rem.addEventListener('change', () => { d.remember = rem.checked; });
   const sel = el('select', { id: 'ai-provider', 'aria-label': 'Provedor de IA' }, Object.entries(PV).map(([id, v]) => el('option', { value: id, raw: v.name })));
   sel.value = d.provider;
   const inp = el('input', { type: 'password', id: 'api-key', placeholder: 'Cole a chave da API', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Chave da API' });
@@ -2517,10 +2523,10 @@ function keyPref() {
   const sync = () => {
     const v = PV[d.provider];
     base.parentNode.hidden = d.provider !== 'custom';
-    model.placeholder = v.model ? `Modelo (padrão: ${v.model})` : 'Nome do modelo';
+    model.placeholder = v.model ? `Modelo: ${v.model}` : 'Nome do modelo';
     where.textContent = '';
     if (v.keys) where.append('Crie uma chave em ', el('a', { href: v.keys, target: '_blank', rel: 'noopener', text: new URL(v.keys).hostname }), '. ');
-    where.append('Ela fica só neste navegador e vai direto para o provedor. O uso é cobrado na sua conta.');
+    where.append('Ela fica só neste navegador e vai direto para o provedor. Em computador compartilhado, desmarque "Lembrar": a chave some ao fechar a aba. O uso é cobrado na sua conta.');
   };
   let seen = '';
   const suggest = async () => {
@@ -2540,10 +2546,11 @@ function keyPref() {
     if (d.provider === 'custom' && !/^https?:\/\/\S+$/.test(d.base)) { msg.textContent = 'Informe o endereço da API, como https://…/v1.'; base.focus(); return; }
     if (d.provider === 'custom' && !d.model) { msg.textContent = 'Informe o nome do modelo.'; model.focus(); return; }
     const c2 = { provider: d.provider, key: d.key, model: d.model, ...(d.provider === 'custom' ? { base: d.base } : {}) };
-    keyDraft = null; setAiCfg(c2); renderPrefs();
+    keyDraft = null; setAiCfg(c2, rem.checked); renderPrefs();
   };
   for (const f of [inp, base, model]) f.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
-  box.append(el('div', { class: 'key-fields' }, [sel, inp, el('div', { hidden: d.provider !== 'custom' ? '' : null }, [base]), model, list]),
+  box.append(el('div', { class: 'key-fields' }, [sel, inp, el('div', { hidden: d.provider !== 'custom' ? '' : null }, [base]), model, list,
+      el('label', { class: 'key-check', for: 'ai-remember' }, [rem, el('span', { text: 'Lembrar a chave neste navegador' })])]),
     el('div', { class: 'key-row' }, [el('button', { type: 'button', class: 'btn small primary', text: 'Salvar', onclick: save }),
       aiCfg() ? el('button', { type: 'button', class: 'btn small', text: 'Cancelar', onclick: () => { keyDraft = null; renderPrefs(); } }) : null, msg]), where);
   sync();

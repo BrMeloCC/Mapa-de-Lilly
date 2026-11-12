@@ -163,6 +163,19 @@ for (const [build, url] of Object.entries(BUILDS)) {
         });
       }
 
+      test('sem "lembrar", a chave não vai para o armazenamento permanente', async ({ page }) => {
+        await open(page, url, { offline });
+        await page.click('.subtab[data-p="leitura"]');
+        await page.click('#panel-leitura button:has-text("Adicionar chave de IA")');
+        await page.fill('#api-key', 'sk-ant-teste-0000-abcd');
+        await page.uncheck('#ai-remember');
+        await page.click('.key-pref button:has-text("Salvar")');
+        await expect(page.locator('.key-pref')).toContainText('só até fechar esta aba');
+        await expect(page.locator('#panel-leitura button:has-text("Gerar leitura completa")')).toBeVisible();
+        const st = await page.evaluate(() => ({ local: JSON.stringify(localStorage).includes('abcd'), tab: (sessionStorage.getItem('lilly-ai') || '').includes('abcd') }));
+        expect(st).toEqual({ local: false, tab: true });
+      });
+
       test('gerador de PDF embutido carrega sem internet', async ({ page }) => {
         await open(page, url, { offline });
         const ok = await page.evaluate(() => new Promise((res) => {
