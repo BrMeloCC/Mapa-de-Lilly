@@ -15,7 +15,7 @@ const PEOPLE = [
 const HELENA_UTC = new Date('1988-08-22T17:10:00Z');
 
 const BUILDS = {
-  offline: 'file://' + fileURLToPath(new URL('../dist/mapa-lilly-offline.html', import.meta.url)),
+  offline: new URL('../dist/mapa-lilly-offline.html', import.meta.url).href, // file:// válido também no Windows
   online: 'http://127.0.0.1:4173/mapa-lilly.html',
 };
 
