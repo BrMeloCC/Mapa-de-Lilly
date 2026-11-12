@@ -13,6 +13,8 @@ O que tem no app:
 
 ## Como usar
 
+**Pelo navegador:** com o repositório público e o GitHub Pages ligado (Settings → Pages → Source: GitHub Actions), cada envio publica o app em `https://brmelocc.github.io/Mapa-de-Lilly/`. Os links de compartilhar mapa passam a apontar para esse endereço.
+
 **Sem instalar nada:** baixe `mapa-lilly-offline.html` na aba *Actions* do GitHub (última execução de *Testes*, item *mapa-de-lilly*) e abra com dois cliques. Os cálculos funcionam sem internet; só as fontes tipográficas caem para as do sistema quando não há conexão.
 
 **Leitura com Claude fora do claude.ai:** cada pessoa usa a própria chave da API da Anthropic. Crie uma em [console.anthropic.com](https://console.anthropic.com/settings/keys) e cole em *Preferências → Leitura com Claude*. A chave fica guardada só naquele navegador e vai direto para a Anthropic; o uso é cobrado na conta de quem colou. Sem chave, todo o resto do app funciona normalmente.
