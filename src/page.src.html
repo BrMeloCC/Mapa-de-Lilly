@@ -1059,7 +1059,9 @@ function nearestCity(lat, lon) {
 }
 
 // ---------- Estado ----------
-const EXAMPLE = { id: null, name: '', relation: 'Exemplo', date: '1990-05-15', time: '10:30', lat: -23.5505, lon: -46.6333, place: 'São Paulo', example: true };
+// Mapa de exemplo: William Lilly, nascido em 1º de maio de 1602 no calendário antigo (11 de maio no atual),
+// por volta das 2h08 da manhã, em Diseworth, Inglaterra.
+const EXAMPLE = { id: null, name: '', relation: 'Exemplo', date: '1602-05-11', time: '02:08', lat: 52.82, lon: -1.33, place: 'Diseworth, Inglaterra', tz: 'Europe/London', example: true };
 let people = [];
 let state = null; // { person, tz, baseUtc, utc, chart, ps, areas, sel }
 // Ganchos de leitura para os testes automáticos (não alteram nada).
@@ -1874,7 +1876,7 @@ function fmtDur(min) {
 function renderHeader() {
   const { person, chart } = state;
   const lp = localParts(state.utc, state.tz);
-  $('p-eyebrow').textContent = person.example ? 'Exemplo · crie o seu em "Novo mapa"' : isHorary(person) ? 'Mapa horário' : person.relation || 'Mapa natal';
+  $('p-eyebrow').textContent = person.example ? 'Exemplo: William Lilly · crie o seu em "Novo mapa"' : isHorary(person) ? 'Mapa horário' : person.relation || 'Mapa natal';
   $('p-name').innerHTML = '';
   const nameKids = person.example ? ['Mapa de ', el('i', { text: 'exemplo' })] : isHorary(person) && !person.name ? ['Céu de ', el('i', { text: 'agora' })] : [el('i', { text: person.name || 'Sem nome' })];
   if (people.some((p) => !isHorary(p))) $('p-name').append(personSwitcher(nameKids)); else $('p-name').append(...nameKids);
