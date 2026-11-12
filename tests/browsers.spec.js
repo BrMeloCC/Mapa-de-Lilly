@@ -176,6 +176,17 @@ for (const [build, url] of Object.entries(BUILDS)) {
         expect(st).toEqual({ local: false, tab: true });
       });
 
+      test('baixa o relatório em PDF sem internet', async ({ page }) => {
+        const { errors } = await open(page, url, { offline });
+        await page.click('.name-row .more summary');
+        const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 45_000 }), page.click('text=Baixar relatório (PDF)')]);
+        expect(dl.suggestedFilename()).toMatch(/\.pdf$/);
+        const fs = await import('node:fs');
+        const head = fs.readFileSync(await dl.path()).subarray(0, 5).toString();
+        expect(head).toBe('%PDF-');
+        expect(errors).toEqual([]);
+      });
+
       test('gerador de PDF embutido carrega sem internet', async ({ page }) => {
         await open(page, url, { offline });
         const ok = await page.evaluate(() => new Promise((res) => {

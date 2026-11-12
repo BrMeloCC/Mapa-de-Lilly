@@ -888,7 +888,7 @@ kbd { font: 600 0.78rem/1 var(--body); padding: 3px 6px; border-radius: 4px; bor
 <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-<!-- jsPDF é carregado só quando a pessoa pede o PDF: https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js -->
+<!-- jsPDF é carregado só quando a pessoa pede o PDF: https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js -->
 <script>
 /*CLAUDEKEY*/
 </script>
@@ -3370,7 +3370,7 @@ async function exportPng(say) {
 let jsPdfP = null;
 function loadJsPdf() {
   if (window.jspdf) return Promise.resolve(window.jspdf.jsPDF);
-  if (!jsPdfP) jsPdfP = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = window.JSPDF_LOCAL || 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; sc.onload = () => res(window.jspdf.jsPDF); sc.onerror = () => { jsPdfP = null; rej(new Error('jspdf')); }; document.head.append(sc); });
+  if (!jsPdfP) jsPdfP = new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = window.JSPDF_LOCAL || 'https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js'; sc.onload = () => res(window.jspdf.jsPDF); sc.onerror = () => { jsPdfP = null; rej(new Error('jspdf')); }; document.head.append(sc); });
   return jsPdfP;
 }
 const pdfSafe = (t) => String(t).replace(/−/g, '-').replace(/′/g, "'").replace(/″/g, '"').replace(/℞/g, ' R').replace(/[⚹☌□△☍]/g, '').replace(/[“”]/g, '"')
